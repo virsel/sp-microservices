@@ -25,29 +25,29 @@ const (
 	avoidNoopCurrencyConversionRPC = false
 )
 
-func (fe *frontendServer) getProducts(ctx context.Context) ([]*pb.Product, error) {
+func (fe *gatewayServer) getProducts(ctx context.Context) ([]*pb.Product, error) {
 	resp, err := pb.NewProductCatalogServiceClient(fe.productCatalogSvcConn).
 		ListProducts(ctx, &pb.Empty{})
 	return resp.GetProducts(), err
 }
 
-func (fe *frontendServer) getProduct(ctx context.Context, id string) (*pb.Product, error) {
+func (fe *gatewayServer) getProduct(ctx context.Context, id string) (*pb.Product, error) {
 	resp, err := pb.NewProductCatalogServiceClient(fe.productCatalogSvcConn).
 		GetProduct(ctx, &pb.GetProductRequest{Id: id})
 	return resp, err
 }
 
-func (fe *frontendServer) getCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
+func (fe *gatewayServer) getCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
 	resp, err := pb.NewCartServiceClient(fe.cartSvcConn).GetCart(ctx, &pb.GetCartRequest{UserId: userID})
 	return resp.GetItems(), err
 }
 
-func (fe *frontendServer) emptyCart(ctx context.Context, userID string) error {
+func (fe *gatewayServer) emptyCart(ctx context.Context, userID string) error {
 	_, err := pb.NewCartServiceClient(fe.cartSvcConn).EmptyCart(ctx, &pb.EmptyCartRequest{UserId: userID})
 	return err
 }
 
-func (fe *frontendServer) insertCart(ctx context.Context, userID, productID string, quantity int32) error {
+func (fe *gatewayServer) insertCart(ctx context.Context, userID, productID string, quantity int32) error {
 	_, err := pb.NewCartServiceClient(fe.cartSvcConn).AddItem(ctx, &pb.AddItemRequest{
 		UserId: userID,
 		Item: &pb.CartItem{
@@ -57,7 +57,7 @@ func (fe *frontendServer) insertCart(ctx context.Context, userID, productID stri
 	return err
 }
 
-func (fe *frontendServer) getShippingQuote(ctx context.Context, items []*pb.CartItem, currency string) (*pb.Money, error) {
+func (fe *gatewayServer) getShippingQuote(ctx context.Context, items []*pb.CartItem, currency string) (*pb.Money, error) {
 	quote, err := pb.NewShippingServiceClient(fe.shippingSvcConn).GetQuote(ctx,
 		&pb.GetQuoteRequest{
 			Address: nil,

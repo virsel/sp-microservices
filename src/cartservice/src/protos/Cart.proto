@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package ShopIRpc;
+package shop_i_rpc;
 
 // -----------------Cart service-----------------
 

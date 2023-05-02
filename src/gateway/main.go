@@ -45,7 +45,7 @@ const (
 
 type ctxKeySessionID struct{}
 
-type frontendServer struct {
+type gatewayServer struct {
 	productCatalogSvcAddr string
 	productCatalogSvcConn *grpc.ClientConn
 
@@ -76,7 +76,7 @@ func main() {
 	}
 	log.Out = os.Stdout
 
-	svc := new(frontendServer)
+	svc := new(gatewayServer)
 
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
@@ -133,7 +133,7 @@ func initStats(log logrus.FieldLogger) {
 	// TODO(arbrown) Implement OpenTelemtry stats
 }
 
-func initTracing(log logrus.FieldLogger, ctx context.Context, svc *frontendServer) (*sdktrace.TracerProvider, error) {
+func initTracing(log logrus.FieldLogger, ctx context.Context, svc *gatewayServer) (*sdktrace.TracerProvider, error) {
 	mustMapEnv(&svc.collectorAddr, "COLLECTOR_SERVICE_ADDR")
 	mustConnGRPC(ctx, &svc.collectorConn, svc.collectorAddr)
 	exporter, err := otlptracegrpc.New(
