@@ -17,7 +17,7 @@ package money
 import (
 	"errors"
 
-	pb "genproto"
+	pb "github.com/virsel/sp-microservices/src/gateway/genproto"
 )
 
 const (

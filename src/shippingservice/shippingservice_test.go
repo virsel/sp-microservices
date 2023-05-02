@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/shippingservice/genproto"
+	pb "github.com/virsel/sp-microservices/src/shippingservice/genproto"
 )
 
 // TestGetQuote is a basic check on the GetQuote RPC service.
@@ -50,8 +50,8 @@ func TestGetQuote(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestGetQuote (%v) failed", err)
 	}
-	if res.CostUsd.GetUnits() != 8 || res.CostUsd.GetNanos() != 990000000 {
-		t.Errorf("TestGetQuote: Quote value '%d.%d' does not match expected '%s'", res.CostUsd.GetUnits(), res.CostUsd.GetNanos(), "11.220000000")
+	if res.CostEur.GetUnits() != 8 || res.CostEur.GetNanos() != 990000000 {
+		t.Errorf("TestGetQuote: Quote value '%d.%d' does not match expected '%s'", res.CostEur.GetUnits(), res.CostEur.GetNanos(), "11.220000000")
 	}
 }
 

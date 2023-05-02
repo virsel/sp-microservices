@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"testing"
 
-	pb "genproto"
+	pb "github.com/virsel/sp-microservices/src/gateway/genproto"
 )
 
 func mmc(u int64, n int32, c string) pb.Money { return pb.Money{Units: u, Nanos: n, CurrencyCode: c} }

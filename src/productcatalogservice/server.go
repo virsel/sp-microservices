@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice/genproto"
+	pb "github.com/virsel/sp-microservices/src/productcatalogservice/genproto"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"cloud.google.com/go/profiler"
@@ -52,7 +52,7 @@ var (
 	log          *logrus.Logger
 	extraLatency time.Duration
 
-	port = "3550"
+	port = "3555"
 
 	reloadCatalog bool
 )
@@ -202,7 +202,9 @@ func initProfiling(service, version string) {
 	log.Warn("could not initialize Stackdriver profiler after retrying, giving up")
 }
 
-type productCatalog struct{}
+type productCatalog struct {
+	pb.UnimplementedProductCatalogServiceServer
+}
 
 func readCatalogFile(catalog *pb.ListProductsResponse) error {
 	catalogMutex.Lock()

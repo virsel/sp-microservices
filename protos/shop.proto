@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package i_rpc;
+package shop_i_rpc;
 
-option go_package = ".;i_rpc";
+option go_package = ".;shop_i_rpc";
 
 // -----------------Cart service-----------------
 
@@ -121,9 +121,6 @@ message Address {
 }
 
 
-
-
-
 // -------------Payment service-----------------
 
 // Represents an amount of money with its currency type.
@@ -164,11 +161,8 @@ message ChargeResponse {
     string transaction_id = 1;
 }
 
-// -------------Email service-----------------
 
-service EmailService {
-    rpc SendOrderConfirmation(SendOrderConfirmationRequest) returns (Empty) {}
-}
+// -------------Checkout service-----------------
 
 message OrderItem {
     CartItem item = 1;
@@ -182,14 +176,6 @@ message OrderResult {
     Address  shipping_address = 4;
     repeated OrderItem items = 5;
 }
-
-message SendOrderConfirmationRequest {
-    string email = 1;
-    OrderResult order = 2;
-}
-
-
-// -------------Checkout service-----------------
 
 service CheckoutService {
     rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse) {}

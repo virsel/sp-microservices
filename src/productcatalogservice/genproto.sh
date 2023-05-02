@@ -19,6 +19,9 @@
 PATH=$PATH:$GOPATH/bin
 protodir=../../protos
 
-protoc --go_out=plugins=grpc:genproto -I $protodir $protodir/demo.proto
+protoc --proto_path=$protodir \
+  --go_out=genproto  \
+  --go-grpc_out=genproto  \
+ $protodir/shop.proto
 
 # [END gke_productcatalogservice_genproto]

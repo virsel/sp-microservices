@@ -1,4 +1,4 @@
-module github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice
+module github.com/virsel/sp-microservices/src/productcatalogservice
 
 go 1.19
 

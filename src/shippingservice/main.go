@@ -28,12 +28,12 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/shippingservice/genproto"
+	pb "github.com/virsel/sp-microservices/src/shippingservice/genproto"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
-	defaultPort = "50051"
+	defaultPort = "3552"
 )
 
 var log *logrus.Logger
@@ -100,7 +100,9 @@ func main() {
 }
 
 // server controls RPC service responses.
-type server struct{}
+type server struct {
+	pb.UnimplementedShippingServiceServer
+}
 
 // Check is for health checking.
 func (s *server) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
@@ -121,8 +123,8 @@ func (s *server) GetQuote(ctx context.Context, in *pb.GetQuoteRequest) (*pb.GetQ
 
 	// 2. Generate a response.
 	return &pb.GetQuoteResponse{
-		CostUsd: &pb.Money{
-			CurrencyCode: "USD",
+		CostEur: &pb.Money{
+			CurrencyCode: "EUR",
 			Units:        int64(quote.Dollars),
 			Nanos:        int32(quote.Cents * 10000000)},
 	}, nil

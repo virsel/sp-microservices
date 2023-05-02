@@ -1,4 +1,4 @@
-module github.com/GoogleCloudPlatform/microservices-demo/src/shippingservice
+module github.com/virsel/sp-microservices/src/shippingservice
 
 go 1.19
 

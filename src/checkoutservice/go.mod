@@ -1,4 +1,4 @@
-module github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice
+module github.com/virsel/sp-microservices/src/checkoutservice
 
 go 1.19
 

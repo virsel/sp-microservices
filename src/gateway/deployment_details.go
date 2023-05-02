@@ -1,11 +1,9 @@
 package main
 
 import (
-	"net/http"
 	"os"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,30 +33,15 @@ func initializeLogger() {
 
 func loadDeploymentDetails() {
 	deploymentDetailsMap = make(map[string]string)
-	var metaServerClient = metadata.NewClient(&http.Client{})
 
 	podHostname, err := os.Hostname()
 	if err != nil {
 		log.Error("Failed to fetch the hostname for the Pod", err)
 	}
 
-	podCluster, err := metaServerClient.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		log.Error("Failed to fetch the name of the cluster in which the pod is running", err)
-	}
-
-	podZone, err := metaServerClient.Zone()
-	if err != nil {
-		log.Error("Failed to fetch the Zone of the node where the pod is scheduled", err)
-	}
-
 	deploymentDetailsMap["HOSTNAME"] = podHostname
-	deploymentDetailsMap["CLUSTERNAME"] = podCluster
-	deploymentDetailsMap["ZONE"] = podZone
 
 	log.WithFields(logrus.Fields{
-		"cluster":  podCluster,
-		"zone":     podZone,
 		"hostname": podHostname,
 	}).Debug("Loaded deployment details")
 }

@@ -1,6 +1,19 @@
 version: '3.9'
 services:
 
+  gateway:
+    build:
+      context: ./src/gateway
+    container_name: gateway
+    ports:
+      - 8080:8080
+    environment:
+      PORT: "8080"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      CART_SERVICE_ADDR: "cartservice:3551"
+      SHIPPING_SERVICE_ADDR: "shippingservice:3552"
+      CHECKOUT_SERVICE_ADDR: "checkoutservice:3553"
+
   redis-cart:
     image: redis:alpine
     container_name: redis-cart
@@ -14,26 +27,55 @@ services:
       context: ./src/cartservice/src
     container_name: cart-service
     ports:
-      - 7070:7070
+      - 3551:3551
     environment:
-    - PORT=7070
-    - REDIS_ADDR=redis-cart:6379
+      - PORT=3551
+      - REDIS_ADDR=redis-cart:6379
     depends_on:
       - redis-cart
 
-  gateway:
+  shipping-service:
     build:
-      context: ./src/gateway
-    container_name: gateway
+      context: ./src/shippingservice
+    container_name: shipping-service
     ports:
-      - 8080:8080
+      - 3552:3552
     environment:
-      PORT: "8080"
+      - PORT=3552
+      - DISABLE_PROFILER=1
+
+  checkout-service:
+    build:
+      context: ./src/checkoutservice
+    container_name: checkout-service
+    ports:
+      - 3553:3553
+    environment:
+      PORT: "3553"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
-      CURRENCY_SERVICE_ADDR: "currencyservice:7000"
-      CART_SERVICE_ADDR: "cartservice:7070"
-      SHIPPING_SERVICE_ADDR: "shippingservice:50051"
-      CHECKOUT_SERVICE_ADDR: "checkoutservice:5050"
+      CART_SERVICE_ADDR: "cartservice:3551"
+      SHIPPING_SERVICE_ADDR: "shippingservice:3552"
+      PAYMENT_SERVICE_ADDR: "paymentservice:3554"
+
+  payment-service:
+    build:
+      context: ./src/paymentservice
+    container_name: payment-service
+    ports:
+      - 3554:3554
+    environment:
+      - PORT=3554
+      - DISABLE_PROFILER=1
+
+  productcatalog-service:
+    build:
+      context: ./src/productcatalogservice
+    container_name: productcatalog-service
+    ports:
+      - 3555:3555
+    environment:
+      - PORT=3555
+      - DISABLE_PROFILER=1
 
 #  postgres:
 #    image: postgres:15-alpine
@@ -59,50 +101,3 @@ services:
 #    command: "-js --sd /data --http_port 8222"
 #    volumes:
 #      - ./.data/nats:/data
-#
-#  order-service:
-#    build:
-#      context: ./build
-#      args:
-#        SERVICE: order-svc
-#    container_name: order-svc
-#    ports:
-#      - 8080:8080
-#    environment:
-#    - PORT=8080
-#    - NATS_URL=nats://nats:4222
-#    - DB_HOST=postgres
-#    - DB_NAME=postgres
-#    - DB_USER=postgres
-#    - DB_PASSWORD=postgres
-#    depends_on:
-#      - postgres
-#      - nats
-#
-#  payment-service:
-#    build:
-#      context: ./build
-#      args:
-#        SERVICE: payment-svc
-#    container_name: payment-svc
-#    ports:
-#      - 8081:8080
-#    environment:
-#    - PORT=8080
-#    - NATS_URL=nats://nats:4222
-#    depends_on:
-#      - nats
-#
-#  gateway:
-#    build:
-#      context: ./build
-#      args:
-#        SERVICE: gateway
-#    container_name: gateway
-#    ports:
-#      - 8082:8080
-#    environment:
-#      PORT: 8080
-#      ORDER_GRPC_ADDR: "order-service:8080"
-#    depends_on:
-#      - order-service

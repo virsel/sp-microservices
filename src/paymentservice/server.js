@@ -34,7 +34,7 @@ class HipsterShopServer {
     this.port = port;
 
     this.packages = {
-      hipsterShop: this.loadProto(path.join(protoRoot, 'demo.proto')),
+      shop_i_rpc: this.loadProto(path.join(protoRoot, 'shop.proto')),
       health: this.loadProto(path.join(protoRoot, 'grpc/health/v1/health.proto'))
     };
 
@@ -91,11 +91,11 @@ class HipsterShopServer {
   }
 
   loadAllProtos(protoRoot) {
-    const hipsterShopPackage = this.packages.hipsterShop.hipstershop;
+    const shopIRpc = this.packages.shop_i_rpc.shop_i_rpc;
     const healthPackage = this.packages.health.grpc.health.v1;
 
     this.server.addService(
-      hipsterShopPackage.PaymentService.service,
+      shopIRpc.PaymentService.service,
       {
         charge: HipsterShopServer.ChargeServiceHandler.bind(this)
       }

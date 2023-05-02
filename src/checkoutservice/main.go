@@ -29,8 +29,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/genproto"
-	money "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/money"
+	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
+	money "github.com/virsel/sp-microservices/src/checkoutservice/money"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -41,8 +41,7 @@ import (
 )
 
 const (
-	listenPort  = "5050"
-	usdCurrency = "USD"
+	listenPort = "3553"
 )
 
 var log *logrus.Logger
@@ -68,17 +67,13 @@ type checkoutService struct {
 	cartSvcAddr string
 	cartSvcConn *grpc.ClientConn
 
-	currencySvcAddr string
-	currencySvcConn *grpc.ClientConn
-
 	shippingSvcAddr string
 	shippingSvcConn *grpc.ClientConn
 
-	emailSvcAddr string
-	emailSvcConn *grpc.ClientConn
-
 	paymentSvcAddr string
 	paymentSvcConn *grpc.ClientConn
+
+	pb.UnimplementedCheckoutServiceServer
 }
 
 func main() {
@@ -107,15 +102,11 @@ func main() {
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_SERVICE_ADDR")
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_SERVICE_ADDR")
 	mustMapEnv(&svc.cartSvcAddr, "CART_SERVICE_ADDR")
-	mustMapEnv(&svc.currencySvcAddr, "CURRENCY_SERVICE_ADDR")
-	mustMapEnv(&svc.emailSvcAddr, "EMAIL_SERVICE_ADDR")
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_SERVICE_ADDR")
 
 	mustConnGRPC(ctx, &svc.shippingSvcConn, svc.shippingSvcAddr)
 	mustConnGRPC(ctx, &svc.productCatalogSvcConn, svc.productCatalogSvcAddr)
 	mustConnGRPC(ctx, &svc.cartSvcConn, svc.cartSvcAddr)
-	mustConnGRPC(ctx, &svc.currencySvcConn, svc.currencySvcAddr)
-	mustConnGRPC(ctx, &svc.emailSvcConn, svc.emailSvcAddr)
 	mustConnGRPC(ctx, &svc.paymentSvcConn, svc.paymentSvcAddr)
 
 	log.Infof("service config: %+v", svc)
@@ -267,11 +258,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		Items:              prep.orderItems,
 	}
 
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		log.Warnf("failed to send order confirmation to %q: %+v", req.Email, err)
-	} else {
-		log.Infof("order confirmation email sent to %q", req.Email)
-	}
+	// TODO: sending order confirm mail
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
 }
@@ -292,16 +279,12 @@ func (cs *checkoutService) prepareOrderItemsAndShippingQuoteFromCart(ctx context
 	if err != nil {
 		return out, fmt.Errorf("failed to prepare order: %+v", err)
 	}
-	shippingUSD, err := cs.quoteShipping(ctx, address, cartItems)
+	shippingEUR, err := cs.quoteShipping(ctx, address, cartItems)
 	if err != nil {
 		return out, fmt.Errorf("shipping quote failure: %+v", err)
 	}
-	shippingPrice, err := cs.convertCurrency(ctx, shippingUSD, userCurrency)
-	if err != nil {
-		return out, fmt.Errorf("failed to convert shipping cost to currency: %+v", err)
-	}
 
-	out.shippingCostLocalized = shippingPrice
+	out.shippingCostLocalized = shippingEUR
 	out.cartItems = cartItems
 	out.orderItems = orderItems
 	return out, nil
@@ -315,7 +298,7 @@ func (cs *checkoutService) quoteShipping(ctx context.Context, address *pb.Addres
 	if err != nil {
 		return nil, fmt.Errorf("failed to get shipping quote: %+v", err)
 	}
-	return shippingQuote.GetCostUsd(), nil
+	return shippingQuote.GetCostEur(), nil
 }
 
 func (cs *checkoutService) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
@@ -342,25 +325,11 @@ func (cs *checkoutService) prepOrderItems(ctx context.Context, items []*pb.CartI
 		if err != nil {
 			return nil, fmt.Errorf("failed to get product #%q", item.GetProductId())
 		}
-		price, err := cs.convertCurrency(ctx, product.GetPriceUsd(), userCurrency)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert price of %q to %s", item.GetProductId(), userCurrency)
-		}
 		out[i] = &pb.OrderItem{
 			Item: item,
-			Cost: price}
+			Cost: product.GetPriceEur()}
 	}
 	return out, nil
-}
-
-func (cs *checkoutService) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
-	result, err := pb.NewCurrencyServiceClient(cs.currencySvcConn).Convert(context.TODO(), &pb.CurrencyConversionRequest{
-		From:   from,
-		ToCode: toCurrency})
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert currency: %+v", err)
-	}
-	return result, err
 }
 
 func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
@@ -371,13 +340,6 @@ func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, pay
 		return "", fmt.Errorf("could not charge the card: %+v", err)
 	}
 	return paymentResp.GetTransactionId(), nil
-}
-
-func (cs *checkoutService) sendOrderConfirmation(ctx context.Context, email string, order *pb.OrderResult) error {
-	_, err := pb.NewEmailServiceClient(cs.emailSvcConn).SendOrderConfirmation(ctx, &pb.SendOrderConfirmationRequest{
-		Email: email,
-		Order: order})
-	return err
 }
 
 func (cs *checkoutService) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {
