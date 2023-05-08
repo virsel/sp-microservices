@@ -65,5 +65,5 @@ func (fe *gatewayServer) getShippingQuote(ctx context.Context, items []*pb.CartI
 	if err != nil {
 		return nil, err
 	}
-	return quote.GetCostEur(), errors.Wrap(err, "failed to convert currency for shipping cost")
+	return quote.GetCost(), errors.Wrap(err, "failed to convert currency for shipping cost")
 }

@@ -298,7 +298,7 @@ func (cs *checkoutService) quoteShipping(ctx context.Context, address *pb.Addres
 	if err != nil {
 		return nil, fmt.Errorf("failed to get shipping quote: %+v", err)
 	}
-	return shippingQuote.GetCostEur(), nil
+	return shippingQuote.GetCost(), nil
 }
 
 func (cs *checkoutService) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
@@ -327,14 +327,14 @@ func (cs *checkoutService) prepOrderItems(ctx context.Context, items []*pb.CartI
 		}
 		out[i] = &pb.OrderItem{
 			Item: item,
-			Cost: product.GetPriceEur()}
+			Cost: product.GetPrice()}
 	}
 	return out, nil
 }
 
 func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
 	paymentResp, err := pb.NewPaymentServiceClient(cs.paymentSvcConn).Charge(ctx, &pb.ChargeRequest{
-		Amount:     amount,
+		Cost:       amount,
 		CreditCard: paymentInfo})
 	if err != nil {
 		return "", fmt.Errorf("could not charge the card: %+v", err)

@@ -123,9 +123,9 @@ func (s *server) GetQuote(ctx context.Context, in *pb.GetQuoteRequest) (*pb.GetQ
 
 	// 2. Generate a response.
 	return &pb.GetQuoteResponse{
-		CostEur: &pb.Money{
+		Cost: &pb.Money{
 			CurrencyCode: "EUR",
-			Units:        int64(quote.Dollars),
+			Units:        int64(quote.Euros),
 			Nanos:        int32(quote.Cents * 10000000)},
 	}, nil
 

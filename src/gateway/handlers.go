@@ -53,7 +53,7 @@ func (fe *gatewayServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ps := make([]productView, len(products))
 	for i, p := range products {
-		ps[i] = productView{p, p.GetPriceEur()}
+		ps[i] = productView{p, p.GetPrice()}
 	}
 
 	// Set ENV_PLATFORM (default to local if not set; use env var if set; otherwise detect GCP, which overrides env)_
@@ -108,7 +108,7 @@ func (fe *gatewayServer) productHandler(w http.ResponseWriter, r *http.Request) 
 	product := struct {
 		Item  *pb.Product
 		Price *pb.Money
-	}{p, p.GetPriceEur()}
+	}{p, p.GetPrice()}
 
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"session_id":        sessionID(r),
@@ -188,7 +188,7 @@ func (fe *gatewayServer) viewCartHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		multPrice := money.MultiplySlow(*p.GetPriceEur(), uint32(item.GetQuantity()))
+		multPrice := money.MultiplySlow(*p.GetPrice(), uint32(item.GetQuantity()))
 		items[i] = cartItemView{
 			Item:     p,
 			Quantity: item.GetQuantity(),

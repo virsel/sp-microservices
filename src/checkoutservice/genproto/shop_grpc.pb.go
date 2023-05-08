@@ -178,7 +178,6 @@ var CartService_ServiceDesc = grpc.ServiceDesc{
 type ProductCatalogServiceClient interface {
 	ListProducts(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ListProductsResponse, error)
 	GetProduct(ctx context.Context, in *GetProductRequest, opts ...grpc.CallOption) (*Product, error)
-	SearchProducts(ctx context.Context, in *SearchProductsRequest, opts ...grpc.CallOption) (*SearchProductsResponse, error)
 }
 
 type productCatalogServiceClient struct {
@@ -207,22 +206,12 @@ func (c *productCatalogServiceClient) GetProduct(ctx context.Context, in *GetPro
 	return out, nil
 }
 
-func (c *productCatalogServiceClient) SearchProducts(ctx context.Context, in *SearchProductsRequest, opts ...grpc.CallOption) (*SearchProductsResponse, error) {
-	out := new(SearchProductsResponse)
-	err := c.cc.Invoke(ctx, "/shop_i_rpc.ProductCatalogService/SearchProducts", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ProductCatalogServiceServer is the server API for ProductCatalogService service.
 // All implementations must embed UnimplementedProductCatalogServiceServer
 // for forward compatibility
 type ProductCatalogServiceServer interface {
 	ListProducts(context.Context, *Empty) (*ListProductsResponse, error)
 	GetProduct(context.Context, *GetProductRequest) (*Product, error)
-	SearchProducts(context.Context, *SearchProductsRequest) (*SearchProductsResponse, error)
 	mustEmbedUnimplementedProductCatalogServiceServer()
 }
 
@@ -235,9 +224,6 @@ func (UnimplementedProductCatalogServiceServer) ListProducts(context.Context, *E
 }
 func (UnimplementedProductCatalogServiceServer) GetProduct(context.Context, *GetProductRequest) (*Product, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProduct not implemented")
-}
-func (UnimplementedProductCatalogServiceServer) SearchProducts(context.Context, *SearchProductsRequest) (*SearchProductsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SearchProducts not implemented")
 }
 func (UnimplementedProductCatalogServiceServer) mustEmbedUnimplementedProductCatalogServiceServer() {}
 
@@ -288,24 +274,6 @@ func _ProductCatalogService_GetProduct_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProductCatalogService_SearchProducts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SearchProductsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProductCatalogServiceServer).SearchProducts(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/shop_i_rpc.ProductCatalogService/SearchProducts",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProductCatalogServiceServer).SearchProducts(ctx, req.(*SearchProductsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ProductCatalogService_ServiceDesc is the grpc.ServiceDesc for ProductCatalogService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -320,10 +288,6 @@ var ProductCatalogService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProduct",
 			Handler:    _ProductCatalogService_GetProduct_Handler,
-		},
-		{
-			MethodName: "SearchProducts",
-			Handler:    _ProductCatalogService_SearchProducts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

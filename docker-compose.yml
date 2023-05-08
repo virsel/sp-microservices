@@ -41,6 +41,8 @@ services:
       start_period: 15s
     volumes:
       - ./.data/postgras:/var/lib/postgresql/data
+    networks:
+      - sp-network
 
   productcatalog-service:
     build:
