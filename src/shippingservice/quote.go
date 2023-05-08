@@ -21,13 +21,13 @@ import (
 
 // Quote represents a currency value.
 type Quote struct {
-	Dollars uint32
-	Cents   uint32
+	Euros uint32
+	Cents uint32
 }
 
 // String representation of the Quote.
 func (q Quote) String() string {
-	return fmt.Sprintf("$%d.%d", q.Dollars, q.Cents)
+	return fmt.Sprintf("$%d.%d", q.Euros, q.Cents)
 }
 
 // CreateQuoteFromCount takes a number of items and returns a Price struct.

@@ -15,24 +15,19 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	psql "github.com/virsel/sp-microservices/src/productcatalogservice/db"
+	"github.com/virsel/sp-microservices/src/productcatalogservice/repositories"
 	"net"
 	"os"
-	"os/signal"
-	"strings"
-	"sync"
-	"syscall"
 	"time"
 
 	pb "github.com/virsel/sp-microservices/src/productcatalogservice/genproto"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"cloud.google.com/go/profiler"
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -47,14 +42,10 @@ import (
 )
 
 var (
-	cat          pb.ListProductsResponse
-	catalogMutex *sync.Mutex
 	log          *logrus.Logger
 	extraLatency time.Duration
 
 	port = "3550"
-
-	reloadCatalog bool
 )
 
 func init() {
@@ -68,11 +59,6 @@ func init() {
 		TimestampFormat: time.RFC3339Nano,
 	}
 	log.Out = os.Stdout
-	catalogMutex = &sync.Mutex{}
-	err := readCatalogFile(&cat)
-	if err != nil {
-		log.Warnf("could not parse product catalog")
-	}
 }
 
 func main() {
@@ -106,22 +92,6 @@ func main() {
 		extraLatency = time.Duration(0)
 	}
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGUSR2)
-	go func() {
-		for {
-			sig := <-sigs
-			log.Printf("Received signal: %s", sig)
-			if sig == syscall.SIGUSR1 {
-				reloadCatalog = true
-				log.Infof("Enable catalog reloading")
-			} else {
-				reloadCatalog = false
-				log.Infof("Disable catalog reloading")
-			}
-		}
-	}()
-
 	if os.Getenv("PORT") != "" {
 		port = os.Getenv("PORT")
 	}
@@ -144,7 +114,24 @@ func run(port string) string {
 		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()))
 
-	svc := &productCatalog{}
+	// create db connection
+	db, err := psql.CreateConnection()
+
+	err = db.Ping()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println("DB Successfully connected!")
+
+	// init db
+	repository := &repositories.ProductRepository{Db: db}
+	err = psql.InitDb(repository)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println("DB Successfully initialized!")
+
+	svc := &productCatalog{ProductRepository: repository}
 
 	pb.RegisterProductCatalogServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)
@@ -204,32 +191,7 @@ func initProfiling(service, version string) {
 
 type productCatalog struct {
 	pb.UnimplementedProductCatalogServiceServer
-}
-
-func readCatalogFile(catalog *pb.ListProductsResponse) error {
-	catalogMutex.Lock()
-	defer catalogMutex.Unlock()
-	catalogJSON, err := ioutil.ReadFile("products.json")
-	if err != nil {
-		log.Fatalf("failed to open product catalog json file: %v", err)
-		return err
-	}
-	if err := jsonpb.Unmarshal(bytes.NewReader(catalogJSON), catalog); err != nil {
-		log.Warnf("failed to parse the catalog JSON: %v", err)
-		return err
-	}
-	log.Info("successfully parsed product catalog json")
-	return nil
-}
-
-func parseCatalog() []*pb.Product {
-	if reloadCatalog || len(cat.Products) == 0 {
-		err := readCatalogFile(&cat)
-		if err != nil {
-			return []*pb.Product{}
-		}
-	}
-	return cat.Products
+	*repositories.ProductRepository
 }
 
 func (p *productCatalog) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
@@ -242,34 +204,24 @@ func (p *productCatalog) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Hea
 
 func (p *productCatalog) ListProducts(context.Context, *pb.Empty) (*pb.ListProductsResponse, error) {
 	time.Sleep(extraLatency)
-	return &pb.ListProductsResponse{Products: parseCatalog()}, nil
+	list, err := p.GetList()
+	if err != nil {
+		log.Error("Couldn't load products, error:", err)
+		return nil, err
+	}
+	return &pb.ListProductsResponse{Products: list}, nil
 }
 
 func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
 	time.Sleep(extraLatency)
-	var found *pb.Product
-	for i := 0; i < len(parseCatalog()); i++ {
-		if req.Id == parseCatalog()[i].Id {
-			found = parseCatalog()[i]
-		}
+	product, err := p.Get(req.GetId())
+	if err != nil {
+		return nil, err
 	}
-	if found == nil {
+	if product == nil {
 		return nil, status.Errorf(codes.NotFound, "no product with ID %s", req.Id)
 	}
-	return found, nil
-}
-
-func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
-	time.Sleep(extraLatency)
-	// Intepret query as a substring match in name or description.
-	var ps []*pb.Product
-	for _, p := range parseCatalog() {
-		if strings.Contains(strings.ToLower(p.Name), strings.ToLower(req.Query)) ||
-			strings.Contains(strings.ToLower(p.Description), strings.ToLower(req.Query)) {
-			ps = append(ps, p)
-		}
-	}
-	return &pb.SearchProductsResponse{Results: ps}, nil
+	return product, nil
 }
 
 func mustMapEnv(target *string, envKey string) {
