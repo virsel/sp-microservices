@@ -7,6 +7,15 @@ services:
       - "55680:55680"  # OTLP gRPC port
     volumes:
       - ./etc/collector-config.yaml:/etc/otel/collector-config.yaml
+    networks:
+      - sp-network
+
+  jaeger:
+    image: jaegertracing/all-in-one
+    ports:
+      - 16686:16686 # serve frontend
+    networks:
+      - sp-network
 
   gateway:
     build:

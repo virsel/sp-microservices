@@ -7,11 +7,12 @@ processors:
   batch:
 
 exporters:
-  logging:
+  jaeger:
+    endpoint: "jaeger:6831"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging]
+      exporters: [jaeger]
