@@ -29,8 +29,8 @@ const logger = pino({
   }
 });
 
-class HipsterShopServer {
-  constructor(protoRoot, port = HipsterShopServer.PORT) {
+class PaymentServer {
+  constructor(protoRoot, port = PaymentServer.PORT) {
     this.port = port;
 
     this.packages = {
@@ -97,19 +97,19 @@ class HipsterShopServer {
     this.server.addService(
       shopIRpc.PaymentService.service,
       {
-        charge: HipsterShopServer.ChargeServiceHandler.bind(this)
+        charge: PaymentServer.ChargeServiceHandler.bind(this)
       }
     );
 
     this.server.addService(
       healthPackage.Health.service,
       {
-        check: HipsterShopServer.CheckHandler.bind(this)
+        check: PaymentServer.CheckHandler.bind(this)
       }
     );
   }
 }
 
-HipsterShopServer.PORT = process.env.PORT;
+PaymentServer.PORT = process.env.PORT;
 
-module.exports = HipsterShopServer;
+module.exports = PaymentServer;
