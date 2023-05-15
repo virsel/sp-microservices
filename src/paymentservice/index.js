@@ -17,20 +17,6 @@
 'use strict';
 
 
-if(process.env.DISABLE_PROFILER) {
-  console.log("Profiler disabled.")
-}
-else {
-  console.log("Profiler enabled.")
-  require('@google-cloud/profiler').start({
-    serviceContext: {
-      service: 'paymentservice',
-      version: '1.0.0'
-    }
-  });
-}
-
-
 if(process.env.ENABLE_TRACING == "1") {
   console.log("Tracing enabled.")
   const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');

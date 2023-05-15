@@ -20,7 +20,6 @@ import (
 	"os"
 	"time"
 
-	"cloud.google.com/go/profiler"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -61,13 +60,6 @@ func main() {
 		log.Info("Tracing disabled.")
 	}
 
-	if os.Getenv("DISABLE_PROFILER") == "" {
-		log.Info("Profiling enabled.")
-		go initProfiling("shippingservice", "1.0.0")
-	} else {
-		log.Info("Profiling disabled.")
-	}
-
 	port := defaultPort
 	if value, ok := os.LookupEnv("PORT"); ok {
 		port = value
@@ -80,20 +72,17 @@ func main() {
 	}
 
 	var srv *grpc.Server
-	if os.Getenv("DISABLE_STATS") == "" {
-		log.Info("Stats enabled, but temporarily unavailable")
-		srv = grpc.NewServer()
-	} else {
-		log.Info("Stats disabled.")
-		srv = grpc.NewServer()
-	}
+
+	srv = grpc.NewServer()
+
 	svc := &server{}
 	pb.RegisterShippingServiceServer(srv, svc)
-	healthpb.RegisterHealthServer(srv, svc)
+
 	log.Infof("Shipping Service listening on port %s", port)
 
 	// Register reflection service on gRPC server.
 	reflection.Register(srv)
+
 	if err := srv.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
@@ -146,32 +135,6 @@ func (s *server) ShipOrder(ctx context.Context, in *pb.ShipOrderRequest) (*pb.Sh
 	}, nil
 }
 
-func initStats() {
-	//TODO(arbrown) Implement OpenTelemetry stats
-}
-
 func initTracing() {
 	// TODO(arbrown) Implement OpenTelemetry tracing
-}
-
-func initProfiling(service, version string) {
-	// TODO(ahmetb) this method is duplicated in other microservices using Go
-	// since they are not sharing packages.
-	for i := 1; i <= 3; i++ {
-		if err := profiler.Start(profiler.Config{
-			Service:        service,
-			ServiceVersion: version,
-			// ProjectID must be set if not running on GCP.
-			// ProjectID: "my-project",
-		}); err != nil {
-			log.Warnf("failed to start profiler: %+v", err)
-		} else {
-			log.Info("started Stackdriver profiler")
-			return
-		}
-		d := time.Second * 10 * time.Duration(i)
-		log.Infof("sleeping %v to retry initializing Stackdriver profiler", d)
-		time.Sleep(d)
-	}
-	log.Warn("could not initialize Stackdriver profiler after retrying, giving up")
 }
