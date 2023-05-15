@@ -1,18 +1,29 @@
 version: '3.9'
 services:
 
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
+    ports:
+      - 16686:16686 # serve frontend
+      - 14268:14268
+    networks:
+      - sp-network
+
   gateway:
     build:
       context: ./src/gateway
     container_name: gateway
     ports:
       - 8080:8080
-    environment:
+    environment: 
       PORT: "8080"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalog-service:3550"
       CART_SERVICE_ADDR: "cart-service:3551"
       SHIPPING_SERVICE_ADDR: "shipping-service:3552"
       CHECKOUT_SERVICE_ADDR: "checkout-service:3553"
+    env_file:
+      - ./etc/tracing-vars.env
     networks:
       - sp-network
 
@@ -32,7 +43,7 @@ services:
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=postgres
+      POSTGRES_PASSWORD: "postgres"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 60s
@@ -51,12 +62,13 @@ services:
     ports:
       - 3550:3550
     environment:
-      - PORT=3550
-      - DISABLE_PROFILER=1
-      - DB_HOST=postgres
-      - DB_NAME=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      PORT: 3550
+      DB_HOST: postgres
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    env_file:
+      - ./etc/tracing-vars.env
     depends_on:
       - postgres
     networks:
@@ -69,8 +81,8 @@ services:
     ports:
       - 3551:3551
     environment:
-      - PORT=3551
-      - REDIS_ADDR=redis-cart:6379
+      PORT: 3551
+      REDIS_ADDR: redis-cart:6379
     depends_on:
       - redis-cart
     networks:
@@ -83,8 +95,9 @@ services:
     ports:
       - 3552:3552
     environment:
-      - PORT=3552
-      - DISABLE_PROFILER=1
+      PORT: 3552
+    env_file:
+      - ./etc/tracing-vars.env
     networks:
       - sp-network
 
@@ -100,6 +113,8 @@ services:
       CART_SERVICE_ADDR: "cart-service:3551"
       SHIPPING_SERVICE_ADDR: "shipping-service:3552"
       PAYMENT_SERVICE_ADDR: "payment-service:3554"
+    env_file:
+      - ./etc/tracing-vars.env
     networks:
       - sp-network
 
@@ -110,8 +125,10 @@ services:
     ports:
       - 3554:3554
     environment:
-      - PORT=3554
-      - DISABLE_PROFILER=1
+      PORT: 3554
+      NATS_URL: nats://localhost:4222
+    env_file:
+      - ./etc/tracing-vars.env
     networks:
       - sp-network
 
