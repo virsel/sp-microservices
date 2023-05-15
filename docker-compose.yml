@@ -1,19 +1,12 @@
 version: '3.9'
 services:
 
-  tracing-collector:
-    image: otel/opentelemetry-collector
-    ports:
-      - "55680:55680"  # OTLP gRPC port
-    volumes:
-      - ./etc/collector-config.yaml:/etc/otel/collector-config.yaml
-    networks:
-      - sp-network
-
   jaeger:
     image: jaegertracing/all-in-one
+    container_name: jaeger
     ports:
       - 16686:16686 # serve frontend
+      - 14268:14268
     networks:
       - sp-network
 
