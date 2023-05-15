@@ -1,0 +1,262 @@
+{
+	"info": {
+		"_postman_id": "4b791f8d-0b3c-4399-803e-429a972f1902",
+		"name": "product-ordering-system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "14376228",
+		"_collection_link": "https://gimpal.postman.co/workspace/Golang~1c6b8890-ff74-4e82-b09b-29e761a93f58/collection/14376228-4b791f8d-0b3c-4399-803e-429a972f1902?action=share&creator=14376228&source=collection_link"
+	},
+	"item": [
+		{
+			"name": "get all",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"shoes2\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}",
+					"host": [
+						"{{url}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get product",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"shoes2\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}product/1",
+					"host": [
+						"{{url}}product"
+					],
+					"path": [
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "cart",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{url}}cart",
+					"host": [
+						"{{url}}cart"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "add to cart",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "quantity",
+							"value": "1",
+							"type": "text"
+						},
+						{
+							"key": "product_id",
+							"value": "2",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{url}}cart",
+					"host": [
+						"{{url}}cart"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "empty cart",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{url}}cart/empty",
+					"host": [
+						"{{url}}cart"
+					],
+					"path": [
+						"empty"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "cart checkout",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{url}}cart/checkout?email=test@test.de&street_address=Teststraße 2&zip_code=00000&city=Leipzig&state=Saxony&country=Germany&credit_card_number=5131433466781568&credit_card_expiration_month=09&credit_card_expiration_year=2023&credit_card_cvv=186",
+					"host": [
+						"{{url}}cart"
+					],
+					"path": [
+						"checkout"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "test@test.de"
+						},
+						{
+							"key": "street_address",
+							"value": "Teststraße 2"
+						},
+						{
+							"key": "zip_code",
+							"value": "00000"
+						},
+						{
+							"key": "city",
+							"value": "Leipzig"
+						},
+						{
+							"key": "state",
+							"value": "Saxony"
+						},
+						{
+							"key": "country",
+							"value": "Germany"
+						},
+						{
+							"key": "credit_card_number",
+							"value": "5131433466781568"
+						},
+						{
+							"key": "credit_card_expiration_month",
+							"value": "09"
+						},
+						{
+							"key": "credit_card_expiration_year",
+							"value": "2023"
+						},
+						{
+							"key": "credit_card_cvv",
+							"value": "186"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "logout",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"shoes2\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}logout",
+					"host": [
+						"{{url}}logout"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "logout Copy",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"shoes2\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}logout",
+					"host": [
+						"{{url}}logout"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
