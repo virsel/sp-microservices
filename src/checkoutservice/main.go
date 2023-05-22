@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"net"
 	"os"
 	"time"
@@ -214,6 +216,71 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	//
 	//// Publish order on nats jetstream
 	//s.Nats.Publish(streamSubjectsname, jsonValue)    streamSubjectsname = "ORDERS.new"
+
+	type OrderEvent struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	type ShippingOrder struct {
+		ID     int    `json:"id"`
+		Status string `json:"status"`
+	}
+
+	// Verbinde mit dem Nats-Server
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		log.Fatal(err) // Ausführung bei einem Fehler beenden
+	}
+	defer nc.Close() // Die Verbindung zum Nats-Server am Ende der Funktion schließen
+
+	// Abonniere die Antwort für die Versandbestellung
+	responseSubject := "ORDER.shipping"
+	sub, err := nc.SubscribeSync(responseSubject) // synchrone Subscription zum Antwort-Subjekt erstellen
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Sende "ORDER.new" Ereignis mit Nats Jetstream
+	order := OrderEvent{ //  OrderEvent-Instanz erstellen und mit Werten initialisieren
+		ID:   123,
+		Name: "Example Order",
+	}
+	jsonValue, err := json.Marshal(order) // OrderEvent-Instanz in JSON umwandeln
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamSubjectsname := "ORDERS.new"              // Das Subjekt für die Veröffentlichung festlegen
+	err = nc.Publish(streamSubjectsname, jsonValue) // Die JSON-Daten auf dem Subjekt veröffentlichen
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Warte auf die Antwort für die Versandbestellung
+	msg, err := sub.NextMsgWithContext(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Verarbeite die Antwort und versende die Bestellung
+	var shippingOrder ShippingOrder
+	err = json.Unmarshal(msg.Data, &shippingOrder)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Veröffentliche die Versandbestellung auf Nats Jetstream
+	jsonValue, err = json.Marshal(shippingOrder)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamSubjectsname = "ORDERS.shipping"
+	err = nc.Publish(streamSubjectsname, jsonValue)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("ORDER.new Ereignis gesendet und Bestellung versendet.")
 
 	// subscribe to event "PAYMENT.finished"
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
