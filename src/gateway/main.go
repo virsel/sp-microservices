@@ -17,6 +17,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"net/http"
 	"os"
 	"time"
@@ -26,9 +32,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 )
@@ -77,13 +80,12 @@ func main() {
 
 	svc := new(gatewayServer)
 
-	otel.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{}, propagation.Baggage{}))
-
 	if os.Getenv("ENABLE_TRACING") == "1" {
-		log.Info("Tracing enabled.")
-		initTracing(log, ctx, svc)
+		log.Info("Tracing is enabled.")
+		_, err := initTracing(log, ctx)
+		if err != nil {
+			errors.Errorf("Tracing could not be established, error: %s", err)
+		}
 	} else {
 		log.Info("Tracing disabled.")
 	}
@@ -122,19 +124,26 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
 
-func initTracing(log logrus.FieldLogger, ctx context.Context, svc *gatewayServer) (*sdktrace.TracerProvider, error) {
-	mustMapEnv(&svc.collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &svc.collectorConn, svc.collectorAddr)
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithGRPCConn(svc.collectorConn))
+func initTracing(log logrus.FieldLogger, ctx context.Context) (*sdktrace.TracerProvider, error) {
+	// Create an jaeger exporter for tracing
+	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
+
 	if err != nil {
-		log.Warnf("warn: Failed to create trace exporter: %v", err)
+		log.Fatalf("Failed to create OTLP exporter: %v", err)
 	}
+	// Create a trace provider with the exporter
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()))
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+			attribute.String("service.name", "gateway"),
+		)),
+	)
+
+	// Set the trace provider as the global provider
 	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	return tp, err
 }

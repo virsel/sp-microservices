@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// import { connect, StringCodec } from "nats";
+const nats = require('nats');
+
+// NATS_URL aus Umgebungsvariable nehmen
+const server = process.env.NATS_URL;
+
+// Codec zur Serialisierung und Deserialisierung erstellen
+const sc = nats.StringCodec();
+
 const path = require('path');
 const grpc = require('@grpc/grpc-js');
 const pino = require('pino');
@@ -19,11 +28,12 @@ const protoLoader = require('@grpc/proto-loader');
 
 const charge = require('./charge');
 
+// logger einrichten
 const logger = pino({
   name: 'paymentservice-server',
   messageKey: 'message',
   formatters: {
-    level (logLevelString, logLevelNum) {
+    level(logLevelString, logLevelNum) {
       return { severity: logLevelString }
     }
   }
@@ -58,22 +68,65 @@ class PaymentServer {
     }
   }
 
+  /**
+   * Handler for PaymentService.CheckHandler.
+   * @param {*} call  { ChargeRequest }
+   * @param {*} callback  fn(err, ChargeResponse)
+   */
   static CheckHandler(call, callback) {
     callback(null, { status: 'SERVING' });
   }
 
-
+  /**
+   * Legt den Port fest, startet den Server und abonniert NATS Nachrichten.
+   */
   listen() {
-    const server = this.server 
-    const port = this.port
+    const server = this.server;
+    const port = this.port;
+
     server.bindAsync(
       `[::]:${port}`,
       grpc.ServerCredentials.createInsecure(),
       function () {
-        logger.info(`PaymentService gRPC server started on port ${port}`);
+        logger.info(`Test PaymentService gRPC server started on port ${port}`);
         server.start();
       }
     );
+  }
+
+  /**
+   * Abonniert ORDER.new NATS Nachrichten.
+   */
+  async subscribe() {
+    // als Client mit NATS Server verbinden
+    try {
+      const nc = await nats.connect({
+        servers: server,
+      });      
+    } catch (error) {
+      logger.warn(error.message);
+      return;
+    }
+
+    let subscription = nc.subscribe("ORDER.new");
+
+    (async (sub) => {
+      logger.info(`subscribed to subject ${sub.getSubject()}`);
+
+      // auf Nachrichten warten
+      for await (const msg of sub) {
+        // Daten in der Nachricht dekodieren, bei Fehler Log ausgeben
+        this.ChargeServiceHandler(sc.decode(msg.data), function (err, result) {
+          if (err) {
+            logger.err(err.msg);
+          } else {
+            nc.publish("PAYMENT.finished", sc.encode(result));
+          }
+        });
+      }
+
+      console.log(`subscription ${sub.getSubject()} processed`);
+    })(subscription);
   }
 
   loadProto(path) {
