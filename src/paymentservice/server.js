@@ -45,16 +45,16 @@ class PaymentServer {
         this.port = port;
 
         this.packages = {
-            shop_i_rpc: this.loadProto(path.join(protoRoot, 'shop.proto')),
             health: this.loadProto(path.join(protoRoot, 'grpc/health/v1/health.proto'))
         };
 
         this.server = new grpc.Server();
-        this.loadAllProtos(protoRoot);
+        this.loadAllProtos();
 
         connect({servers: server}).then(value => {
             this.nc = value
             logger.info(`Established nats-jetstream connection to addr: ${server}`);
+            this.addNatsTracingInterceptor()
             this.subscribe()
         });
     }
@@ -102,7 +102,7 @@ class PaymentServer {
     }
 
     /**
-     * Abonniert ORDER.new NATS Nachrichten.
+     * Abonniert NATS Nachrichten.
      */
     subscribe() {
         const processingPaymentRequest = "PAYMENTS.process"
@@ -133,6 +133,27 @@ class PaymentServer {
         })(subscription);
     }
 
+    addNatsTracingInterceptor(){
+        if (process.env.ENABLE_TRACING === "1") {
+            console.log("Tracing enabled.");
+            const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
+            const { SimpleSpanProcessor, TraceIdRatioBasedSampler } = require('@opentelemetry/sdk-trace-base');
+            const { JaegerExporter } = require('@opentelemetry/exporter-jaeger');
+
+            const tracerProvider = new NodeTracerProvider({
+                sampler: new TraceIdRatioBasedSampler(1.0),
+            });
+
+            const collectorUrl = process.env.COLLECTOR_SERVICE_ADDR;
+            const exporter = new JaegerExporter({ serviceName: 'payment-service', endpoint: collectorUrl});
+
+            tracerProvider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            tracerProvider.register();
+        } else {
+            console.log("Tracing disabled.");
+        }
+    }
+
     loadProto(path) {
         const packageDefinition = protoLoader.loadSync(
             path,
@@ -147,7 +168,7 @@ class PaymentServer {
         return grpc.loadPackageDefinition(packageDefinition);
     }
 
-    loadAllProtos(protoRoot) {
+    loadAllProtos() {
         const healthPackage = this.packages.health.grpc.health.v1;
 
         this.server.addService(

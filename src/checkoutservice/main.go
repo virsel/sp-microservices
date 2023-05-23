@@ -18,27 +18,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
+	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
+	"github.com/virsel/sp-microservices/src/checkoutservice/money"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	"google.golang.org/grpc/codes"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 	"net"
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
-	"github.com/virsel/sp-microservices/src/checkoutservice/money"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -137,30 +138,29 @@ func main() {
 	log.Fatal(err)
 }
 
-func initTracing() {
-	var (
-		collectorAddr string
-		collectorConn *grpc.ClientConn
-	)
+func initTracing() (*sdktrace.TracerProvider, error) {
+	// Create an jaeger exporter for tracing
+	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
 
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
-	defer cancel()
-
-	mustMapEnv(&collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &collectorConn, collectorAddr)
-
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithGRPCConn(collectorConn))
 	if err != nil {
-		log.Warnf("warn: Failed to create trace exporter: %v", err)
+		log.Fatalf("Failed to create OTLP exporter: %v", err)
 	}
+
+	// Create a trace provider with the exporter
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	otel.SetTracerProvider(tp)
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+			attribute.String("service.name", "checkout-service"),
+		)),
+	)
 
+	// Set the trace provider as the global provider
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tp, err
 }
 
 func mustMapEnv(target *string, envKey string) {
@@ -173,6 +173,7 @@ func mustMapEnv(target *string, envKey string) {
 
 func mustConnNats(conn **nats.Conn, addr string) {
 	var err error
+	// Use the tracer with NATS
 	*conn, err = nats.Connect(addr)
 	if err != nil {
 		panic(errors.Wrapf(err, "nats: failed to connect %s", addr))

@@ -20,6 +20,10 @@ import (
 	"fmt"
 	psql "github.com/virsel/sp-microservices/src/productcatalogservice/db"
 	"github.com/virsel/sp-microservices/src/productcatalogservice/repositories"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"net"
 	"os"
 	"time"
@@ -35,7 +39,6 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
@@ -62,7 +65,7 @@ func init() {
 
 func main() {
 	if os.Getenv("ENABLE_TRACING") == "1" {
-		err := initTracing()
+		_, err := initTracing()
 		if err != nil {
 			log.Warnf("warn: failed to start tracer: %+v", err)
 		}
@@ -131,28 +134,29 @@ func run(port string) string {
 	return l.Addr().String()
 }
 
-func initTracing() error {
-	var (
-		collectorAddr string
-		collectorConn *grpc.ClientConn
-	)
+func initTracing() (*sdktrace.TracerProvider, error) {
+	// Create an jaeger exporter for tracing
+	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
 
-	ctx := context.Background()
-
-	mustMapEnv(&collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &collectorConn, collectorAddr)
-
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithGRPCConn(collectorConn))
 	if err != nil {
-		log.Warnf("warn: Failed to create trace exporter: %v", err)
+		log.Fatalf("Failed to create OTLP exporter: %v", err)
 	}
+
+	// Create a trace provider with the exporter
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()))
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+			attribute.String("service.name", "productcatalog-service"),
+		)),
+	)
+
+	// Set the trace provider as the global provider
 	otel.SetTracerProvider(tp)
-	return err
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tp, err
 }
 
 type productCatalog struct {
