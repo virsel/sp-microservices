@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
-	money "github.com/virsel/sp-microservices/src/checkoutservice/money"
+	"github.com/virsel/sp-microservices/src/checkoutservice/money"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -42,7 +42,8 @@ import (
 )
 
 const (
-	listenPort = "3553"
+	listenPort               = "3553"
+	processingPaymentRequest = "PAYMENTS.process"
 )
 
 var log *logrus.Logger
@@ -74,6 +75,9 @@ type checkoutService struct {
 	paymentSvcAddr string
 	paymentSvcConn *grpc.ClientConn
 
+	natsSvcAddr string
+	natsSvcConn *nats.Conn
+
 	pb.UnimplementedCheckoutServiceServer
 }
 
@@ -97,11 +101,16 @@ func main() {
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_SERVICE_ADDR")
 	mustMapEnv(&svc.cartSvcAddr, "CART_SERVICE_ADDR")
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_SERVICE_ADDR")
+	mustMapEnv(&svc.natsSvcAddr, "NATS_SERVICE_ADDR")
 
+	// connect to grpc services
 	mustConnGRPC(ctx, &svc.shippingSvcConn, svc.shippingSvcAddr)
 	mustConnGRPC(ctx, &svc.productCatalogSvcConn, svc.productCatalogSvcAddr)
 	mustConnGRPC(ctx, &svc.cartSvcConn, svc.cartSvcAddr)
 	mustConnGRPC(ctx, &svc.paymentSvcConn, svc.paymentSvcAddr)
+
+	// connect to nats
+	mustConnNats(&svc.natsSvcConn, svc.natsSvcAddr)
 
 	log.Infof("service config: %+v", svc)
 
@@ -126,10 +135,6 @@ func main() {
 	log.Infof("starting to listen on tcp: %q", lis.Addr().String())
 	err = srv.Serve(lis)
 	log.Fatal(err)
-}
-
-func initStats() {
-	//TODO(arbrown) Implement OpenTelemetry stats
 }
 
 func initTracing() {
@@ -164,6 +169,14 @@ func mustMapEnv(target *string, envKey string) {
 		panic(fmt.Sprintf("environment variable %q not set", envKey))
 	}
 	*target = v
+}
+
+func mustConnNats(conn **nats.Conn, addr string) {
+	var err error
+	*conn, err = nats.Connect(addr)
+	if err != nil {
+		panic(errors.Wrapf(err, "nats: failed to connect %s", addr))
+	}
 }
 
 func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
@@ -209,80 +222,6 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	// TODO: sending "ORDER.new" event with nats jetstream
-	// on response -> ship order
-	//orderVal := model.OrderEvent{Id: res.Id, Name: in.Name}
-	//jsonValue, _ := json.Marshal(orderVal)
-	//
-	//// Publish order on nats jetstream
-	//s.Nats.Publish(streamSubjectsname, jsonValue)    streamSubjectsname = "ORDERS.new"
-
-	type OrderEvent struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
-
-	type ShippingOrder struct {
-		ID     int    `json:"id"`
-		Status string `json:"status"`
-	}
-
-	// Verbinde mit dem Nats-Server
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		log.Fatal(err) // Ausführung bei einem Fehler beenden
-	}
-	defer nc.Close() // Die Verbindung zum Nats-Server am Ende der Funktion schließen
-
-	// Abonniere die Antwort für die Versandbestellung
-	responseSubject := "ORDER.shipping"
-	sub, err := nc.SubscribeSync(responseSubject) // synchrone Subscription zum Antwort-Subjekt erstellen
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Sende "ORDER.new" Ereignis mit Nats Jetstream
-	order := OrderEvent{ //  OrderEvent-Instanz erstellen und mit Werten initialisieren
-		ID:   123,
-		Name: "Example Order",
-	}
-	jsonValue, err := json.Marshal(order) // OrderEvent-Instanz in JSON umwandeln
-	if err != nil {
-		log.Fatal(err)
-	}
-	streamSubjectsname := "ORDERS.new"              // Das Subjekt für die Veröffentlichung festlegen
-	err = nc.Publish(streamSubjectsname, jsonValue) // Die JSON-Daten auf dem Subjekt veröffentlichen
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Warte auf die Antwort für die Versandbestellung
-	msg, err := sub.NextMsgWithContext(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Verarbeite die Antwort und versende die Bestellung
-	var shippingOrder ShippingOrder
-	err = json.Unmarshal(msg.Data, &shippingOrder)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Veröffentliche die Versandbestellung auf Nats Jetstream
-	jsonValue, err = json.Marshal(shippingOrder)
-	if err != nil {
-		log.Fatal(err)
-	}
-	streamSubjectsname = "ORDERS.shipping"
-	err = nc.Publish(streamSubjectsname, jsonValue)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("ORDER.new Ereignis gesendet und Bestellung versendet.")
-
-	// subscribe to event "PAYMENT.finished"
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
@@ -379,13 +318,20 @@ func (cs *checkoutService) prepOrderItems(ctx context.Context, items []*pb.CartI
 }
 
 func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
-	paymentResp, err := pb.NewPaymentServiceClient(cs.paymentSvcConn).Charge(ctx, &pb.ChargeRequest{
+	// Serialize the struct to JSON
+	payload, err := json.Marshal(&pb.ChargeRequest{
 		Cost:       amount,
 		CreditCard: paymentInfo})
 	if err != nil {
-		return "", fmt.Errorf("could not charge the card: %+v", err)
+		return "", err
 	}
-	return paymentResp.GetTransactionId(), nil
+
+	msg, err := cs.natsSvcConn.Request(processingPaymentRequest, payload, time.Second*60)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return string(msg.Data), nil
 }
 
 func (cs *checkoutService) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {

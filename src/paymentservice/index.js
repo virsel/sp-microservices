@@ -47,6 +47,4 @@ const PROTO_PATH = path.join(__dirname, '/proto/');
 
 const server = new PaymentServer(PROTO_PATH, PORT);
 
-server.subscribe();
-
 server.listen();
