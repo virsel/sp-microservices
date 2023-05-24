@@ -124,6 +124,8 @@ services:
       NATS_SERVICE_ADDR: "nats://nats-jetstream:4222"
     env_file:
       - ./etc/tracing-vars.env
+    depends_on:
+      - nats-jetstream
     networks:
       - sp-network
 
@@ -138,6 +140,8 @@ services:
       NATS_URL: "nats://nats-jetstream:4222"
     env_file:
       - ./etc/tracing-vars.env
+    depends_on:
+      - nats-jetstream
     networks:
       - sp-network
 
