@@ -45,12 +45,6 @@ services:
       - 5432:5432
     environment:
       POSTGRES_PASSWORD: "postgres"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
     volumes:
       - ./.data/postgras:/var/lib/postgresql/data
     networks:
