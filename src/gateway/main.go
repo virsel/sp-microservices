@@ -59,9 +59,6 @@ type gatewayServer struct {
 
 	shippingSvcAddr string
 	shippingSvcConn *grpc.ClientConn
-
-	collectorAddr string
-	collectorConn *grpc.ClientConn
 }
 
 func main() {
@@ -82,7 +79,7 @@ func main() {
 
 	if os.Getenv("ENABLE_TRACING") == "1" {
 		log.Info("Tracing is enabled.")
-		_, err := initTracing(log, ctx)
+		_, err := initTracing()
 		if err != nil {
 			errors.Errorf("Tracing could not be established, error: %s", err)
 		}
@@ -124,7 +121,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
 
-func initTracing(log logrus.FieldLogger, ctx context.Context) (*sdktrace.TracerProvider, error) {
+func initTracing() (*sdktrace.TracerProvider, error) {
 	// Create an jaeger exporter for tracing
 	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
 	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
@@ -132,6 +129,7 @@ func initTracing(log logrus.FieldLogger, ctx context.Context) (*sdktrace.TracerP
 	if err != nil {
 		log.Fatalf("Failed to create OTLP exporter: %v", err)
 	}
+
 	// Create a trace provider with the exporter
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),

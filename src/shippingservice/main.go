@@ -16,6 +16,13 @@ package main
 
 import (
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"net"
 	"os"
 	"time"
@@ -53,8 +60,6 @@ func init() {
 
 func main() {
 	if os.Getenv("DISABLE_TRACING") == "" {
-		log.Info("Tracing enabled, but temporarily unavailable")
-		log.Info("See https://github.com/GoogleCloudPlatform/microservices-demo/issues/422 for more info.")
 		go initTracing()
 	} else {
 		log.Info("Tracing disabled.")
@@ -135,6 +140,27 @@ func (s *server) ShipOrder(ctx context.Context, in *pb.ShipOrderRequest) (*pb.Sh
 	}, nil
 }
 
-func initTracing() {
-	// TODO(arbrown) Implement OpenTelemetry tracing
+func initTracing() (*sdktrace.TracerProvider, error) {
+	// Create an jaeger exporter for tracing
+	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
+
+	if err != nil {
+		log.Fatalf("Failed to create OTLP exporter: %v", err)
+	}
+
+	// Create a trace provider with the exporter
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+			attribute.String("service.name", "shipping-service"),
+		)),
+	)
+
+	// Set the trace provider as the global provider
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tp, err
 }

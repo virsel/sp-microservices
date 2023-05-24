@@ -16,31 +16,35 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
+	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
+	"github.com/virsel/sp-microservices/src/checkoutservice/money"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	"google.golang.org/grpc/codes"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 	"net"
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	pb "github.com/virsel/sp-microservices/src/checkoutservice/genproto"
-	money "github.com/virsel/sp-microservices/src/checkoutservice/money"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/grpc"
 )
 
 const (
-	listenPort = "3553"
+	listenPort               = "3553"
+	processingPaymentRequest = "PAYMENTS.process"
 )
 
 var log *logrus.Logger
@@ -72,6 +76,9 @@ type checkoutService struct {
 	paymentSvcAddr string
 	paymentSvcConn *grpc.ClientConn
 
+	natsSvcAddr string
+	natsSvcConn *nats.Conn
+
 	pb.UnimplementedCheckoutServiceServer
 }
 
@@ -95,11 +102,16 @@ func main() {
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_SERVICE_ADDR")
 	mustMapEnv(&svc.cartSvcAddr, "CART_SERVICE_ADDR")
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_SERVICE_ADDR")
+	mustMapEnv(&svc.natsSvcAddr, "NATS_SERVICE_ADDR")
 
+	// connect to grpc services
 	mustConnGRPC(ctx, &svc.shippingSvcConn, svc.shippingSvcAddr)
 	mustConnGRPC(ctx, &svc.productCatalogSvcConn, svc.productCatalogSvcAddr)
 	mustConnGRPC(ctx, &svc.cartSvcConn, svc.cartSvcAddr)
 	mustConnGRPC(ctx, &svc.paymentSvcConn, svc.paymentSvcAddr)
+
+	// connect to nats
+	mustConnNats(&svc.natsSvcConn, svc.natsSvcAddr)
 
 	log.Infof("service config: %+v", svc)
 
@@ -126,34 +138,29 @@ func main() {
 	log.Fatal(err)
 }
 
-func initStats() {
-	//TODO(arbrown) Implement OpenTelemetry stats
-}
+func initTracing() (*sdktrace.TracerProvider, error) {
+	// Create an jaeger exporter for tracing
+	endpoint := os.Getenv("COLLECTOR_SERVICE_ADDR")
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
 
-func initTracing() {
-	var (
-		collectorAddr string
-		collectorConn *grpc.ClientConn
-	)
-
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
-	defer cancel()
-
-	mustMapEnv(&collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &collectorConn, collectorAddr)
-
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithGRPCConn(collectorConn))
 	if err != nil {
-		log.Warnf("warn: Failed to create trace exporter: %v", err)
+		log.Fatalf("Failed to create OTLP exporter: %v", err)
 	}
+
+	// Create a trace provider with the exporter
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	otel.SetTracerProvider(tp)
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+			attribute.String("service.name", "checkout-service"),
+		)),
+	)
 
+	// Set the trace provider as the global provider
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tp, err
 }
 
 func mustMapEnv(target *string, envKey string) {
@@ -162,6 +169,15 @@ func mustMapEnv(target *string, envKey string) {
 		panic(fmt.Sprintf("environment variable %q not set", envKey))
 	}
 	*target = v
+}
+
+func mustConnNats(conn **nats.Conn, addr string) {
+	var err error
+	// Use the tracer with NATS
+	*conn, err = nats.Connect(addr)
+	if err != nil {
+		panic(errors.Wrapf(err, "nats: failed to connect %s", addr))
+	}
 }
 
 func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
@@ -207,15 +223,6 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	// TODO: sending "ORDER.new" event with nats jetstream
-	// on response -> ship order
-	//orderVal := model.OrderEvent{Id: res.Id, Name: in.Name}
-	//jsonValue, _ := json.Marshal(orderVal)
-	//
-	//// Publish order on nats jetstream
-	//s.Nats.Publish(streamSubjectsname, jsonValue)    streamSubjectsname = "ORDERS.new"
-
-	// subscribe to event "PAYMENT.finished"
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
@@ -312,13 +319,20 @@ func (cs *checkoutService) prepOrderItems(ctx context.Context, items []*pb.CartI
 }
 
 func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
-	paymentResp, err := pb.NewPaymentServiceClient(cs.paymentSvcConn).Charge(ctx, &pb.ChargeRequest{
+	// Serialize the struct to JSON
+	payload, err := json.Marshal(&pb.ChargeRequest{
 		Cost:       amount,
 		CreditCard: paymentInfo})
 	if err != nil {
-		return "", fmt.Errorf("could not charge the card: %+v", err)
+		return "", err
 	}
-	return paymentResp.GetTransactionId(), nil
+
+	msg, err := cs.natsSvcConn.Request(processingPaymentRequest, payload, time.Second*60)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return string(msg.Data), nil
 }
 
 func (cs *checkoutService) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {

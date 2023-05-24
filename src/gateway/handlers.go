@@ -261,15 +261,17 @@ func (fe *gatewayServer) placeOrderHandler(w http.ResponseWriter, r *http.Reques
 		totalPaid = money.Must(money.Sum(totalPaid, multPrice))
 	}
 
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+	err = json.NewEncoder(w).Encode(map[string]interface{}{
 		"session_id":        sessionID(r),
 		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"user_currency":     currentCurrency(r),
 		"order":             order.GetOrder(),
 		"total_paid":        &totalPaid,
 		"deploymentDetails": deploymentDetailsMap,
-	}); err != nil {
+	})
+	if err != nil {
 		log.Println(err)
+	} else {
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

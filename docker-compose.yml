@@ -1,3 +1,4 @@
+
 version: '3.9'
 services:
 
@@ -101,6 +102,19 @@ services:
     networks:
       - sp-network
 
+  nats-jetstream:
+    container_name: nats-jetstream
+    image: nats:2.9-alpine
+    command: [ "nats-server", "--js", "--config", "/etc/nats/nats-server.conf" ]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./.data/nats:/data
+      - ./etc/nats-server.conf:/etc/nats/nats-server.conf
+    networks:
+      - sp-network
+
   checkout-service:
     build:
       context: ./src/checkoutservice
@@ -113,6 +127,7 @@ services:
       CART_SERVICE_ADDR: "cart-service:3551"
       SHIPPING_SERVICE_ADDR: "shipping-service:3552"
       PAYMENT_SERVICE_ADDR: "payment-service:3554"
+      NATS_SERVICE_ADDR: "nats://nats-jetstream:4222"
     env_file:
       - ./etc/tracing-vars.env
     networks:
@@ -126,7 +141,7 @@ services:
       - 3554:3554
     environment:
       PORT: 3554
-      NATS_URL: nats://localhost:4222
+      NATS_URL: "nats://nats-jetstream:4222"
     env_file:
       - ./etc/tracing-vars.env
     networks:
@@ -135,28 +150,3 @@ services:
 networks:
   sp-network:
     driver: bridge
-
-#  postgres:
-#    image: postgres:15-alpine
-#    container_name: postgres-product-ordering-system
-#    ports:
-#      - 5432:5432
-#    environment:
-#    - POSTGRES_PASSWORD=postgres
-#    healthcheck:
-#      test: ["CMD-SHELL", "pg_isready -U postgres"]
-#      interval: 60s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 15s
-#    volumes:
-#      - ./.data/postgras:/var/lib/postgresql/data
-#
-#  nats:
-#    container_name: nats-js
-#    image: nats:2.9-alpine
-#    ports:
-#      - "4222:4222"
-#    command: "-js --sd /data --http_port 8222"
-#    volumes:
-#      - ./.data/nats:/data
