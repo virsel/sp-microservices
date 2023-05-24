@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "4b791f8d-0b3c-4399-803e-429a972f1902",
 		"name": "product-ordering-system",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
 		"_exporter_id": "14376228",
 		"_collection_link": "https://gimpal.postman.co/workspace/Golang~1c6b8890-ff74-4e82-b09b-29e761a93f58/collection/14376228-4b791f8d-0b3c-4399-803e-429a972f1902?action=share&creator=14376228&source=collection_link"
 	},
@@ -24,12 +24,7 @@
 						}
 					}
 				},
-				"url": {
-					"raw": "{{url}}",
-					"host": [
-						"{{url}}"
-					]
-				}
+				"url": "{{url}}"
 			},
 			"response": []
 		},
@@ -50,15 +45,7 @@
 						}
 					}
 				},
-				"url": {
-					"raw": "{{url}}product/1",
-					"host": [
-						"{{url}}product"
-					],
-					"path": [
-						"1"
-					]
-				}
+				"url": "{{url}}product/1"
 			},
 			"response": []
 		},
@@ -74,12 +61,7 @@
 						"disabled": true
 					}
 				],
-				"url": {
-					"raw": "{{url}}cart",
-					"host": [
-						"{{url}}cart"
-					]
-				}
+				"url": "{{url}}cart"
 			},
 			"response": []
 		},
@@ -109,12 +91,7 @@
 						}
 					]
 				},
-				"url": {
-					"raw": "{{url}}cart",
-					"host": [
-						"{{url}}cart"
-					]
-				}
+				"url": "{{url}}cart"
 			},
 			"response": []
 		},
@@ -129,15 +106,7 @@
 						"type": "text"
 					}
 				],
-				"url": {
-					"raw": "{{url}}cart/empty",
-					"host": [
-						"{{url}}cart"
-					],
-					"path": [
-						"empty"
-					]
-				}
+				"url": "{{url}}cart/empty"
 			},
 			"response": []
 		},
@@ -223,38 +192,7 @@
 						}
 					}
 				},
-				"url": {
-					"raw": "{{url}}logout",
-					"host": [
-						"{{url}}logout"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "logout Copy",
-			"protocolProfileBehavior": {
-				"disableBodyPruning": true
-			},
-			"request": {
-				"method": "GET",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\r\n    \"name\": \"shoes2\"\r\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "{{url}}logout",
-					"host": [
-						"{{url}}logout"
-					]
-				}
+				"url": "{{url}}logout"
 			},
 			"response": []
 		}
