@@ -128,8 +128,9 @@ func run(port string) string {
 
 	svc := &productCatalog{ProductRepository: repository}
 
-	pb.RegisterProductCatalogServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)
+
+	pb.RegisterProductCatalogServiceServer(srv, svc)
 	go srv.Serve(l)
 	return l.Addr().String()
 }
